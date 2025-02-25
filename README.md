@@ -19,12 +19,6 @@ A browser extension that allows you to export your conversations from popular AI
 
 ## Installation
 
-### Chrome Web Store (Recommended)
-
-1. Visit the [Chrome Web Store page](#) for AI Chat Exporter
-2. Click "Add to Chrome"
-3. Confirm the installation when prompted
-
 ### Manual Installation
 
 1. Download or clone this repository
