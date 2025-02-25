@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "LLM Conversation Exporter",
+  "version": "1.0",
+  "description": "Export conversations from various LLM interfaces",
+  "permissions": [
+    "activeTab",
+    "downloads",
+    "tabs",
+    "scripting"
+  ],
+  "host_permissions": [
+    "https://gemini.google.com/*",
+    "https://claude.ai/*",
+    "https://chat.openai.com/*"
+  ],
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "icons": {
+    "48": "icon48.png",
+    "128": "icon128.png"
+  }
+} 
