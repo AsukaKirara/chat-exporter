@@ -167,8 +167,49 @@ function extractDeepSeekConversation() {
     const messages = [];
     
     // Find all message containers
-    const messageContainers = document.querySelectorAll('.dad65929, .f9bf7997, .deep-chat-message, .deep-chat-message-container');
-    console.log('Found DeepSeek message containers:', messageContainers.length);
+    // The issue might be related to the conversation structure. Let's look for more specific containers
+    // and also inspect parent elements to ensure we get the complete conversation
+    const messageContainers = [];
+    
+    // First try the direct method
+    const directContainers = document.querySelectorAll('.dad65929, .f9bf7997, .deep-chat-message, .deep-chat-message-container');
+    messageContainers.push(...Array.from(directContainers));
+    
+    // If we only found one container or none, try looking in a parent container
+    if (messageContainers.length <= 2) {
+      // Look for the chat container that might hold all messages
+      const chatContainer = document.querySelector('.ds-conversation, .chat-container, [role="region"], .message-list-container');
+      
+      if (chatContainer) {
+        // Get all direct children that might be message containers
+        const childContainers = chatContainer.querySelectorAll(':scope > div');
+        childContainers.forEach(child => {
+          // Check if this is a message container we haven't already found
+          const isMessageContainer = 
+            child.classList.contains('dad65929') || 
+            child.classList.contains('f9bf7997') || 
+            child.classList.contains('deep-chat-message') ||
+            child.classList.contains('deep-chat-message-container') ||
+            child.querySelector('.fbb737a4, .ds-markdown--block') !== null;
+          
+          if (isMessageContainer && !messageContainers.includes(child)) {
+            messageContainers.push(child);
+          }
+        });
+      }
+      
+      // If still not finding enough messages, try another approach with the fa81 class from the sample
+      if (messageContainers.length <= 2) {
+        const messageGroups = document.querySelectorAll('.fa81');
+        messageGroups.forEach(group => {
+          if (!messageContainers.includes(group)) {
+            messageContainers.push(group);
+          }
+        });
+      }
+    }
+    
+    console.log('Found DeepSeek message containers using improved method:', messageContainers.length);
     
     if (!messageContainers.length) {
       console.log('No DeepSeek message containers found');
@@ -178,13 +219,15 @@ function extractDeepSeekConversation() {
     // Process each message container
     messageContainers.forEach(container => {
       // Determine the role of the message
-      const isUser = container.classList.contains('dad65929') || 
-                     container.classList.contains('deep-chat-user-message') ||
-                     container.querySelector('.fbb737a4, .deep-chat-user-avatar') !== null;
+      const isUser = 
+        container.classList.contains('dad65929') || 
+        container.classList.contains('deep-chat-user-message') ||
+        container.querySelector('.fbb737a4, .deep-chat-user-avatar') !== null;
       
-      const isAssistant = container.classList.contains('f9bf7997') || 
-                          container.classList.contains('deep-chat-model-message') ||
-                          container.querySelector('.ds-markdown--block, .deep-chat-model-avatar') !== null;
+      const isAssistant = 
+        container.classList.contains('f9bf7997') || 
+        container.classList.contains('deep-chat-model-message') ||
+        container.querySelector('.ds-markdown--block, .deep-chat-model-avatar') !== null;
       
       if (isUser) {
         // Extract user message
@@ -221,7 +264,8 @@ function extractDeepSeekConversation() {
             // Look for reasoning/thinking section
             const reasoningContainer = container.querySelector('.e1675d8b, .thinking-section');
             if (reasoningContainer) {
-              metadata.reasoning = reasoningContainer.textContent.trim();
+              const reasoningText = reasoningContainer.textContent.trim();
+              metadata.reasoning = reasoningText;
               // Update model if we found reasoning
               metadata.model = 'deepseek-r1';
             }
