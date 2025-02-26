@@ -166,61 +166,236 @@ function extractDeepSeekConversation() {
     
     const messages = [];
     
-    // Find all message containers
-    // The issue might be related to the conversation structure. Let's look for more specific containers
-    // and also inspect parent elements to ensure we get the complete conversation
-    const messageContainers = [];
+    // The main div holding the conversation has 'dad65929' class
+    // User messages have 'fa81' class
+    // Assistant messages have 'f9bf7997' class
     
-    // First try the direct method
-    const directContainers = document.querySelectorAll('.dad65929, .f9bf7997, .deep-chat-message, .deep-chat-message-container');
-    messageContainers.push(...Array.from(directContainers));
+    // Find the conversation container
+    const conversationContainer = document.querySelector('.dad65929');
+    console.log('Found DeepSeek conversation container:', !!conversationContainer);
     
-    // If we only found one container or none, try looking in a parent container
-    if (messageContainers.length <= 2) {
-      // Look for the chat container that might hold all messages
-      const chatContainer = document.querySelector('.ds-conversation, .chat-container, [role="region"], .message-list-container');
+    if (conversationContainer) {
+      // Get all message elements in order (both user and assistant)
+      const allMessages = [];
       
-      if (chatContainer) {
-        // Get all direct children that might be message containers
-        const childContainers = chatContainer.querySelectorAll(':scope > div');
-        childContainers.forEach(child => {
-          // Check if this is a message container we haven't already found
-          const isMessageContainer = 
-            child.classList.contains('dad65929') || 
-            child.classList.contains('f9bf7997') || 
-            child.classList.contains('deep-chat-message') ||
-            child.classList.contains('deep-chat-message-container') ||
-            child.querySelector('.fbb737a4, .ds-markdown--block') !== null;
+      // Get user messages (fa81)
+      const userMessages = Array.from(document.querySelectorAll('.fa81'));
+      userMessages.forEach(el => {
+        allMessages.push({
+          element: el,
+          type: 'user',
+          position: el.getBoundingClientRect().top
+        });
+      });
+      
+      // Get assistant messages (f9bf7997)
+      const assistantMessages = Array.from(document.querySelectorAll('.f9bf7997'));
+      assistantMessages.forEach(el => {
+        allMessages.push({
+          element: el,
+          type: 'assistant',
+          position: el.getBoundingClientRect().top
+        });
+      });
+      
+      // Sort messages by vertical position to get the correct conversation flow
+      allMessages.sort((a, b) => a.position - b.position);
+      
+      console.log(`Found ${userMessages.length} user messages and ${assistantMessages.length} assistant messages, total: ${allMessages.length}`);
+      
+      // Process each message in order
+      allMessages.forEach((item, index) => {
+        if (item.type === 'user') {
+          // Extract user message content
+          const contentElement = item.element.querySelector('.fbb737a4') || item.element;
+          const text = contentElement.textContent.trim();
           
-          if (isMessageContainer && !messageContainers.includes(child)) {
-            messageContainers.push(child);
+          if (text) {
+            messages.push({
+              role: 'user',
+              content: [{ type: 'text', text }]
+            });
+            console.log(`Extracted user message ${index}: ${text.substring(0, 30)}...`);
           }
-        });
-      }
+        } else if (item.type === 'assistant') {
+          // Extract assistant message content
+          // Try multiple possible content elements
+          const possibleContentElements = [
+            item.element.querySelector('.ds-markdown--block'), 
+            item.element.querySelector('.b0a51e35'),
+            item.element.querySelector('div[class*="markdown"]'),
+            item.element.querySelector('p'),
+            item.element // If no specific content element found, use the whole message
+          ];
+          
+          // Find the first non-null content element
+          const contentElement = possibleContentElements.find(el => el !== null);
+          
+          if (contentElement) {
+            const text = contentElement.textContent.trim();
+            
+            if (text) {
+              const messageObj = {
+                role: 'assistant',
+                content: [{ type: 'text', text }]
+              };
+              
+              // Extract metadata (model name and reasoning)
+              const metadata = {};
+              
+              // Look for model selector
+              const modelSelector = document.querySelector('.model-select-button');
+              if (modelSelector) {
+                metadata.model = modelSelector.textContent.trim();
+              }
+              
+              // Look for reasoning/thinking section
+              const reasoningContainer = item.element.querySelector('.e1675d8b, .thinking-section');
+              if (reasoningContainer) {
+                const reasoningText = reasoningContainer.textContent.trim();
+                metadata.reasoning = reasoningText;
+                // Update model if we found reasoning
+                metadata.model = 'deepseek-r1';
+              } else {
+                metadata.model = 'deepseek-v3';
+              }
+              
+              // Only add metadata if we found something
+              if (Object.keys(metadata).length > 0) {
+                messageObj.metadata = metadata;
+              }
+              
+              messages.push(messageObj);
+              console.log(`Extracted assistant message ${index}: ${text.substring(0, 30)}...`);
+            }
+          }
+        }
+      });
       
-      // If still not finding enough messages, try another approach with the fa81 class from the sample
-      if (messageContainers.length <= 2) {
-        const messageGroups = document.querySelectorAll('.fa81');
-        messageGroups.forEach(group => {
-          if (!messageContainers.includes(group)) {
-            messageContainers.push(group);
-          }
-        });
+      console.log('Final DeepSeek messages array:', messages);
+      if (messages.length > 0) {
+        return { messages };
       }
     }
     
-    console.log('Found DeepSeek message containers using improved method:', messageContainers.length);
+    // If the direct approach failed, try an alternative approach
+    console.log('Direct approach failed, trying alternative approach...');
+    
+    // If we can't find the conversation container, try just looking for all messages directly
+    const userElements = document.querySelectorAll('.fa81');
+    const assistantElements = document.querySelectorAll('.f9bf7997');
+    
+    if (userElements.length > 0 || assistantElements.length > 0) {
+      // Create a combined timeline
+      const timeline = [];
+      
+      // Process user messages
+      userElements.forEach(element => {
+        const contentElement = element.querySelector('.fbb737a4') || element;
+        const text = contentElement.textContent.trim();
+        
+        if (text) {
+          timeline.push({
+            type: 'user',
+            text: text,
+            position: element.getBoundingClientRect().top
+          });
+        }
+      });
+      
+      // Process assistant messages
+      assistantElements.forEach(element => {
+        const contentElements = [
+          element.querySelector('.ds-markdown--block'),
+          element.querySelector('.b0a51e35'),
+          element.querySelector('div[class*="markdown"]'),
+          element.querySelector('p'),
+          element
+        ];
+        
+        const contentElement = contentElements.find(el => el !== null);
+        
+        if (contentElement) {
+          const text = contentElement.textContent.trim();
+          
+          if (text) {
+            timeline.push({
+              type: 'assistant',
+              text: text,
+              position: element.getBoundingClientRect().top,
+              element: element // Keep reference for metadata extraction
+            });
+          }
+        }
+      });
+      
+      // Sort by position to maintain correct conversation order
+      timeline.sort((a, b) => a.position - b.position);
+      
+      // Convert to messages array
+      timeline.forEach(item => {
+        if (item.type === 'user') {
+          messages.push({
+            role: 'user',
+            content: [{ type: 'text', text: item.text }]
+          });
+        } else {
+          const messageObj = {
+            role: 'assistant',
+            content: [{ type: 'text', text: item.text }]
+          };
+          
+          // Extract metadata if available
+          const metadata = {};
+          
+          const modelSelector = document.querySelector('.model-select-button');
+          if (modelSelector) {
+            metadata.model = modelSelector.textContent.trim();
+          }
+          
+          // If there's a reference to the original element, check for reasoning
+          if (item.element) {
+            const reasoningContainer = item.element.querySelector('.e1675d8b, .thinking-section');
+            if (reasoningContainer) {
+              metadata.reasoning = reasoningContainer.textContent.trim();
+              metadata.model = 'deepseek-r1';
+            }
+          }
+          
+          if (Object.keys(metadata).length > 0) {
+            messageObj.metadata = metadata;
+          }
+          
+          messages.push(messageObj);
+        }
+      });
+      
+      console.log('Final DeepSeek messages using direct class approach:', messages);
+      if (messages.length > 0) {
+        return { messages };
+      }
+    }
+    
+    // If both approaches failed, fall back to our original method
+    console.log('Both specific approaches failed, falling back to original method...');
+    
+    // First try the direct method
+    const messageContainers = document.querySelectorAll('.dad65929, .f9bf7997, .deep-chat-message, .deep-chat-message-container, .fa81');
+    console.log('Found DeepSeek message containers using fallback method:', messageContainers.length);
     
     if (!messageContainers.length) {
       console.log('No DeepSeek message containers found');
       return null;
     }
     
-    // Process each message container
-    messageContainers.forEach(container => {
-      // Determine the role of the message
+    // Create a timeline based on position
+    const fallbackTimeline = [];
+    
+    // Process each container
+    Array.from(messageContainers).forEach(container => {
+      // Check if this is a user or assistant message
       const isUser = 
-        container.classList.contains('dad65929') || 
+        container.classList.contains('fa81') || 
         container.classList.contains('deep-chat-user-message') ||
         container.querySelector('.fbb737a4, .deep-chat-user-avatar') !== null;
       
@@ -231,58 +406,75 @@ function extractDeepSeekConversation() {
       
       if (isUser) {
         // Extract user message
-        const contentElement = container.querySelector('.fbb737a4, .deep-chat-message-content, .message-content');
-        if (contentElement) {
-          const text = contentElement.textContent.trim();
-          if (text) {
-            messages.push({
-              role: 'user',
-              content: [{ type: 'text', text }]
-            });
-          }
+        const contentElement = container.querySelector('.fbb737a4, .deep-chat-message-content, .message-content') || container;
+        const text = contentElement.textContent.trim();
+        
+        if (text) {
+          fallbackTimeline.push({
+            type: 'user',
+            text: text,
+            position: container.getBoundingClientRect().top
+          });
         }
       } else if (isAssistant) {
         // Extract assistant message
-        const contentElement = container.querySelector('.ds-markdown--block, .deep-chat-message-content, .message-content');
-        if (contentElement) {
-          const text = contentElement.textContent.trim();
-          if (text) {
-            const messageObj = {
-              role: 'assistant',
-              content: [{ type: 'text', text }]
-            };
-            
-            // Extract metadata (model name and reasoning)
-            const metadata = {};
-            
-            // Look for model selector
-            const modelSelector = document.querySelector('.model-select-button');
-            if (modelSelector) {
-              metadata.model = modelSelector.textContent.trim();
-            }
-            
-            // Look for reasoning/thinking section
-            const reasoningContainer = container.querySelector('.e1675d8b, .thinking-section');
-            if (reasoningContainer) {
-              const reasoningText = reasoningContainer.textContent.trim();
-              metadata.reasoning = reasoningText;
-              // Update model if we found reasoning
-              metadata.model = 'deepseek-r1';
-            }
-            
-            // Only add metadata if we found something
-            if (Object.keys(metadata).length > 0) {
-              messageObj.metadata = metadata;
-            }
-            
-            messages.push(messageObj);
-          }
+        const contentElement = container.querySelector('.ds-markdown--block, .deep-chat-message-content, .message-content, .b0a51e35') || container;
+        const text = contentElement.textContent.trim();
+        
+        if (text) {
+          fallbackTimeline.push({
+            type: 'assistant',
+            text: text,
+            position: container.getBoundingClientRect().top,
+            container: container // Keep reference for metadata
+          });
         }
       }
     });
     
-    console.log('Final DeepSeek messages array with metadata:', messages);
+    // Sort by position
+    fallbackTimeline.sort((a, b) => a.position - b.position);
+    
+    // Convert to messages
+    fallbackTimeline.forEach(item => {
+      if (item.type === 'user') {
+        messages.push({
+          role: 'user',
+          content: [{ type: 'text', text: item.text }]
+        });
+      } else {
+        const messageObj = {
+          role: 'assistant',
+          content: [{ type: 'text', text: item.text }]
+        };
+        
+        // Extract metadata
+        const metadata = {};
+        
+        const modelSelector = document.querySelector('.model-select-button');
+        if (modelSelector) {
+          metadata.model = modelSelector.textContent.trim();
+        }
+        
+        if (item.container) {
+          const reasoningContainer = item.container.querySelector('.e1675d8b, .thinking-section');
+          if (reasoningContainer) {
+            metadata.reasoning = reasoningContainer.textContent.trim();
+            metadata.model = 'deepseek-r1';
+          }
+        }
+        
+        if (Object.keys(metadata).length > 0) {
+          messageObj.metadata = metadata;
+        }
+        
+        messages.push(messageObj);
+      }
+    });
+    
+    console.log('Final DeepSeek messages using fallback timeline approach:', messages);
     return messages.length ? { messages } : null;
+    
   } catch (error) {
     console.error('Error in extractDeepSeekConversation:', error);
     return null;
