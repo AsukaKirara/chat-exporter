@@ -123,22 +123,61 @@ function extractChatGPTConversation() {
           }
           
           // Find and extract chain of thought/reasoning
-          const reasoningButton = turn.querySelector('button.inline.w-full.text-start');
-          if (reasoningButton) {
-            const reasoningLabel = reasoningButton.querySelector('span.align-middle');
-            if (reasoningLabel && reasoningLabel.textContent.includes('Reasoned for')) {
-              // The reasoning content is in the next sibling after the button
-              const reasoningContainer = reasoningButton.nextElementSibling;
-              if (reasoningContainer && reasoningContainer.classList.contains('relative')) {
-                // Look for the markdown content within the reasoning section
-                const reasoningMarkdown = reasoningContainer.querySelector('._markdown_1frq2_10, .text-token-text-secondary.markdown');
-                if (reasoningMarkdown) {
-                  metadata.reasoning = reasoningMarkdown.innerText.trim();
-                } else {
-                  // Fallback to get all text from the reasoning container
-                  const reasoningText = reasoningContainer.querySelector('.flex .text-token-text-secondary');
-                  if (reasoningText) {
-                    metadata.reasoning = reasoningText.innerText.trim();
+          // First check for O1 model reasoning format
+          const reasoningSpan = turn.querySelector('span.text-token-text-secondary');
+          if (reasoningSpan) {
+            // For O1 model, there's a summary line and possibly detailed content
+            // First, try to get the reasoning summary
+            const reasoningButton = reasoningSpan.querySelector('button');
+            const reasoningSummary = reasoningButton?.querySelector('span.text-start')?.textContent?.trim() || 
+                                    reasoningSpan.childNodes[0]?.textContent?.trim();
+            
+            // Next, look for the detailed reasoning content which could be in several possible locations
+            let reasoningContent = '';
+            
+            // Option 1: In a div that follows the span (most common)
+            const reasoningNextDiv = reasoningSpan.nextElementSibling?.querySelector('.mb-4');
+            if (reasoningNextDiv) {
+              reasoningContent = reasoningNextDiv.textContent.trim();
+            } 
+            // Option 2: In a div inside the span or inside one of the span's children
+            else {
+              const innerDiv = reasoningSpan.querySelector('.mb-4, .markdown, .prose');
+              if (innerDiv) {
+                reasoningContent = innerDiv.textContent.trim();
+              }
+            }
+            
+            // If we found either summary or content, use it
+            if (reasoningSummary && reasoningSummary.includes('Reasoned')) {
+              if (reasoningContent) {
+                // If we have both, combine them
+                metadata.reasoning = reasoningSummary + "\n\n" + reasoningContent;
+              } else {
+                // Otherwise just use the summary
+                metadata.reasoning = reasoningSummary;
+              }
+            }
+          } 
+          // If no O1 reasoning found, check for traditional button format
+          else {
+            const reasoningButton = turn.querySelector('button.inline.w-full.text-start');
+            if (reasoningButton) {
+              const reasoningLabel = reasoningButton.querySelector('span.align-middle');
+              if (reasoningLabel && reasoningLabel.textContent.includes('Reasoned for')) {
+                // The reasoning content is in the next sibling after the button
+                const reasoningContainer = reasoningButton.nextElementSibling;
+                if (reasoningContainer && reasoningContainer.classList.contains('relative')) {
+                  // Look for the markdown content within the reasoning section
+                  const reasoningMarkdown = reasoningContainer.querySelector('._markdown_1frq2_10, .text-token-text-secondary.markdown');
+                  if (reasoningMarkdown) {
+                    metadata.reasoning = reasoningMarkdown.innerText.trim();
+                  } else {
+                    // Fallback to get all text from the reasoning container
+                    const reasoningText = reasoningContainer.querySelector('.flex .text-token-text-secondary');
+                    if (reasoningText) {
+                      metadata.reasoning = reasoningText.innerText.trim();
+                    }
                   }
                 }
               }
