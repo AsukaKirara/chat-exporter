@@ -28,9 +28,24 @@ document.getElementById('exportBtn').addEventListener('click', async () => {
     const url = URL.createObjectURL(blob);
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     
+    // Extract metadata for filename
+    let harmType = 'None';
+    let modelName = 'Unknown';
+    let name = 'Conversation';
+    
+    // Look for metadata in the first assistant message
+    if (conversation && conversation.messages) {
+      const assistantMessage = conversation.messages.find(msg => msg.role === 'assistant');
+      if (assistantMessage && assistantMessage.metadata) {
+        harmType = assistantMessage.metadata.harmType || 'None';
+        modelName = assistantMessage.metadata.model || 'Unknown';
+        name = assistantMessage.metadata.name || 'Conversation';
+      }
+    }
+    
     await chrome.downloads.download({
       url: url,
-      filename: `conversation-${timestamp}.json`
+      filename: `${harmType} - ${modelName} - ${name} - ${timestamp}.json`
     });
 
     statusDiv.textContent = 'Export successful!';

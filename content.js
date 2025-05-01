@@ -12,9 +12,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       
       let conversation = null;
       
-      if (url.includes('chat.openai.com') || url.includes('chatgpt.com')) {
-        console.log('Detected ChatGPT interface');
+      if (url.includes('chat.openai.com')) {
+        console.log('Detected ChatGPT interface (chat.openai.com)');
         conversation = extractChatGPTConversation();
+      } else if (url.includes('chatgpt.com')) {
+        console.log('Detected ChatGPT.com interface');
+        conversation = extractChatGPTDotComConversation();
       } else if (url.includes('gemini.google.com')) {
         console.log('Detected Gemini interface');
         conversation = extractGeminiConversation();
@@ -39,7 +42,423 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   return true; // Required for async response
 });
 
-// ChatGPT conversation extractor
+// ChatGPT.com conversation extractor
+function extractChatGPTDotComConversation() {
+  console.log('Starting ChatGPT.com extraction with enhanced debugging');
+  const messages = [];
+  
+  // Debug: Log document title and URL to confirm we're on chatgpt.com
+  console.log('Page title:', document.title);
+  console.log('URL:', window.location.href);
+  
+  // Try multiple approaches to find the container
+  console.log('Attempting to find conversation container using multiple approaches...');
+  
+  // Document the DOM structure for debugging
+  console.log('Document structure summary:');
+  console.log('Body children count:', document.body.children.length);
+  console.log('First few body children tag names:', 
+    Array.from(document.body.children).slice(0, 3).map(el => el.tagName));
+
+  // Approach 1: Standard selectors
+  const standardSelectors = [
+    'div.@thread-xl\\/thread\\:pt-header-height',
+    'div[class*="thread"]',
+    'div.flex.flex-col.overflow-hidden',
+    'div.flex.flex-col.text-sm.pb-25',  
+    'div.flex.shrink',
+    'div.text-token-text-primary'
+  ];
+  
+  let container = null;
+  
+  for (const selector of standardSelectors) {
+    try {
+      const el = document.querySelector(selector);
+      console.log(`Selector "${selector}": ${el ? 'Found element' : 'No element found'}`);
+      if (el) {
+        container = el;
+        console.log(`Using container found with selector: ${selector}`);
+        break;
+      }
+    } catch (e) {
+      console.error(`Error with selector "${selector}":`, e);
+    }
+  }
+  
+  // Approach 2: Find by conversation turn attribute
+  if (!container) {
+    console.log('Approach 2: Looking for conversation turns directly');
+    const conversationTurn = document.querySelector('[data-testid^="conversation-turn-"]');
+    if (conversationTurn) {
+      console.log('Found a conversation turn directly');
+      // Try to get the parent container
+      container = conversationTurn.closest('div[class*="flex"]') || 
+                 conversationTurn.parentElement || 
+                 conversationTurn.parentElement?.parentElement;
+      
+      console.log('Found container via conversation turn parent:', container);
+    }
+  }
+  
+  // Approach 3: Look for specific UI elements
+  if (!container) {
+    console.log('Approach 3: Looking for specific UI elements');
+    // Look for elements that are likely to be in the chat interface
+    const userMessageElement = document.querySelector('[data-message-author-role="user"]');
+    const assistantMessageElement = document.querySelector('[data-message-author-role="assistant"]');
+    
+    if (userMessageElement || assistantMessageElement) {
+      console.log('Found message elements directly');
+      const messageElement = userMessageElement || assistantMessageElement;
+      container = messageElement.closest('div[class*="flex"]') || 
+                 messageElement.parentElement || 
+                 messageElement.parentElement?.parentElement;
+      
+      console.log('Found container via message element parent:', container);
+    }
+  }
+  
+  // If still no container, use document.body but log this clearly
+  if (!container) {
+    console.log('All approaches failed to find a specific container, using document.body as fallback');
+    container = document.body;
+  }
+
+  // Look for conversation turns
+  console.log('Looking for conversation turns in container...');
+  const turns = container.querySelectorAll('article[data-testid^="conversation-turn-"]');
+  console.log('Found conversation turns with data-testid:', turns.length);
+  
+  // If no turns found with data-testid, try other approaches
+  if (!turns.length) {
+    console.log('No turns with data-testid found, trying alternative approaches');
+    
+    // Try to find all articles
+    const articles = container.querySelectorAll('article');
+    console.log('Found articles:', articles.length);
+    
+    if (articles.length > 0) {
+      console.log('Processing articles without data-testid');
+      // Document what we found
+      console.log('Article elements found:');
+      articles.forEach((article, index) => {
+        console.log(`Article ${index}: has h5="${!!article.querySelector('h5')}", has h6="${!!article.querySelector('h6')}"`);
+        console.log(`Article ${index} classes:`, article.className);
+      });
+      
+      // Process each article
+      articles.forEach((article, index) => {
+        // Try to determine if this is a user or assistant message
+        const hasUserHeader = article.querySelector('h5')?.textContent.includes('You');
+        const hasAssistantHeader = article.querySelector('h6')?.textContent.includes('ChatGPT');
+        
+        // If headers don't clearly indicate, check for role attributes or use position
+        const hasUserRole = article.querySelector('[data-message-author-role="user"]');
+        const hasAssistantRole = article.querySelector('[data-message-author-role="assistant"]');
+        
+        // Determine message type using all available indicators
+        const isUser = hasUserHeader || hasUserRole || (!hasAssistantHeader && !hasAssistantRole && index % 2 === 0);
+        const isAssistant = hasAssistantHeader || hasAssistantRole || (!hasUserHeader && !hasUserRole && index % 2 === 1);
+        
+        console.log(`Article ${index}: isUser=${isUser}, isAssistant=${isAssistant}`);
+        
+        if (isUser) {
+          const userMsg = extractUserMessage(article);
+          if (userMsg) {
+            messages.push(userMsg);
+            console.log(`Extracted user message from article ${index}`);
+          } else {
+            console.log(`Failed to extract user message from article ${index}`);
+          }
+        } else if (isAssistant) {
+          const assistantMsg = extractAssistantMessage(article);
+          if (assistantMsg) {
+            messages.push(assistantMsg);
+            console.log(`Extracted assistant message from article ${index}`);
+          } else {
+            console.log(`Failed to extract assistant message from article ${index}`);
+          }
+        }
+      });
+    } else {
+      // Last resort: look for any elements that might contain messages
+      console.log('No articles found, trying last resort approach');
+      
+      // Try to find user messages by common patterns
+      const userElements = container.querySelectorAll('.whitespace-pre-wrap');
+      console.log('Found potential user message elements:', userElements.length);
+      
+      userElements.forEach((element, index) => {
+        const text = element.textContent.trim();
+        if (text && text.length > 0) {
+          const isWithinAssistantMessage = 
+            element.closest('[data-message-author-role="assistant"]') || 
+            element.closest('pre');
+          
+          if (!isWithinAssistantMessage) {
+            messages.push({
+              role: 'user',
+              content: [{ type: 'text', text }],
+              metadata: {
+                name: 'ChatGPT Conversation',
+                harmType: 'None'
+              }
+            });
+            console.log(`Added user message from whitespace-pre-wrap ${index}`);
+          }
+        }
+      });
+      
+      // Try to find assistant messages by common patterns
+      const assistantElements = container.querySelectorAll('.markdown, .prose');
+      console.log('Found potential assistant message elements:', assistantElements.length);
+      
+      assistantElements.forEach((element, index) => {
+        // Skip if this is within a code block
+        const isCodeBlock = element.closest('pre');
+        if (!isCodeBlock) {
+          const text = element.textContent.trim();
+          if (text && text.length > 0) {
+            messages.push({
+              role: 'assistant',
+              content: [{ type: 'text', text }],
+              metadata: {
+                model: 'gpt-4', // Default fallback
+                name: 'ChatGPT Conversation',
+                harmType: 'None'
+              }
+            });
+            console.log(`Added assistant message from markdown/prose ${index}`);
+          }
+        }
+      });
+    }
+  } else {
+    // We found turns with data-testid, process them
+    console.log('Processing conversation turns with data-testid');
+    
+    // Process each turn with data-testid
+    turns.forEach((turn, index) => {
+      console.log(`Processing turn ${index}`);
+      
+      // Extract user message
+      const userMessage = turn.querySelector('[data-message-author-role="user"]');
+      if (userMessage) {
+        console.log(`Turn ${index} has user message`);
+        const msg = extractUserMessage(turn);
+        if (msg) {
+          messages.push(msg);
+          console.log(`Added user message from turn ${index}`);
+        } else {
+          console.log(`Failed to extract user message from turn ${index}`);
+        }
+      }
+      
+      // Extract assistant message
+      const assistantMessage = turn.querySelector('[data-message-author-role="assistant"]');
+      if (assistantMessage) {
+        console.log(`Turn ${index} has assistant message`);
+        const msg = extractAssistantMessage(turn);
+        if (msg) {
+          messages.push(msg);
+          console.log(`Added assistant message from turn ${index}`);
+        } else {
+          console.log(`Failed to extract assistant message from turn ${index}`);
+        }
+      }
+    });
+  }
+
+  console.log(`Extraction complete: found ${messages.length} messages`);
+  
+  // Final check - if no messages were found, return null
+  if (messages.length === 0) {
+    console.log('No messages were found, returning null');
+    return null;
+  }
+  
+  return { messages };
+}
+
+// Helper function to extract user message
+function extractUserMessage(container) {
+  // Find the whitespace-pre-wrap element that contains the message text
+  const textElement = container.querySelector('.whitespace-pre-wrap');
+  if (!textElement) {
+    console.log('extractUserMessage: No .whitespace-pre-wrap element found');
+    return null;
+  }
+  
+  const text = textElement.innerText.trim();
+  if (!text) {
+    console.log('extractUserMessage: Empty text content');
+    return null;
+  }
+  
+  console.log('extractUserMessage: Found text:', text.substring(0, 30) + (text.length > 30 ? '...' : ''));
+  
+  return {
+    role: 'user',
+    content: [{ type: 'text', text }],
+    metadata: {
+      name: 'ChatGPT Conversation',
+      harmType: 'None'
+    }
+  };
+}
+
+// Helper function to extract assistant message
+function extractAssistantMessage(container) {
+  // Look for markdown content, which contains the response text
+  const markdownContent = container.querySelector('.markdown, .prose, [class*="markdown"]');
+  if (!markdownContent) {
+    console.log('extractAssistantMessage: No markdown content found');
+    
+    // Try alternate content containers
+    const alternateContent = container.querySelector('[data-message-author-role="assistant"] div, [data-message-id]');
+    if (alternateContent) {
+      const text = alternateContent.innerText.trim();
+      if (text) {
+        console.log('extractAssistantMessage: Found text in alternate container');
+        return {
+          role: 'assistant',
+          content: [{ type: 'text', text }],
+          metadata: {
+            model: 'gpt-4', // Default fallback
+            name: 'ChatGPT Conversation',
+            harmType: 'None'
+          }
+        };
+      }
+    }
+    
+    return null;
+  }
+  
+  // Find any code blocks
+  const codeBlocks = [];
+  const preElements = markdownContent.querySelectorAll('pre');
+  
+  preElements.forEach(pre => {
+    const codeElement = pre.querySelector('code');
+    if (codeElement) {
+      // Try to get the language from the container div class
+      let language = 'plaintext';
+      const langDiv = pre.querySelector('div.flex.items-center');
+      if (langDiv && langDiv.textContent) {
+        language = langDiv.textContent.trim();
+      }
+      
+      // Get the code content
+      const code = codeElement.textContent.trim();
+      if (code) {
+        codeBlocks.push({
+          language: language,
+          code: code
+        });
+        console.log('extractAssistantMessage: Found code block in language:', language);
+      }
+    }
+  });
+  
+  // Get text content of the message
+  const text = markdownContent.innerText.trim();
+  if (!text) {
+    console.log('extractAssistantMessage: Empty markdown content');
+    return null;
+  }
+  
+  console.log('extractAssistantMessage: Found text:', text.substring(0, 30) + (text.length > 30 ? '...' : ''));
+  
+  const messageObj = {
+    role: 'assistant',
+    content: [{ type: 'text', text }]
+  };
+  
+  // Extract metadata
+  const metadata = {};
+  
+  // Look for model name
+  const modelSlug = container.querySelector('[data-message-author-role="assistant"]')?.getAttribute('data-message-model-slug');
+  if (modelSlug) {
+    metadata.model = modelSlug;
+    console.log('extractAssistantMessage: Found model from data attribute:', modelSlug);
+  } else {
+    // Try to find model name from UI elements
+    const modelSpan = container.querySelector('[data-state="closed"] button[aria-label="Copy"]')
+                       ?.closest('div[data-state="closed"]')
+                       ?.nextElementSibling
+                       ?.querySelector('span.overflow-hidden');
+                        
+    if (modelSpan) {
+      const modelText = modelSpan.textContent.trim();
+      metadata.model = modelText || 'gpt-4'; // Default to gpt-4 if no specific model found
+      console.log('extractAssistantMessage: Found model from UI element:', metadata.model);
+    } else {
+      // Try another approach to find the model
+      const modelButton = container.querySelector('button[id^="radix-"]');
+      if (modelButton) {
+        const modelText = modelButton.textContent.trim();
+        console.log('extractAssistantMessage: Found model button text:', modelText);
+        if (modelText.includes('o4-mini')) {
+          metadata.model = 'o4-mini';
+        } else if (modelText.includes('o3')) {
+          metadata.model = 'o3';
+        } else if (modelText.includes('4o')) {
+          metadata.model = 'gpt-4o';
+        } else {
+          metadata.model = 'gpt-4'; // Default fallback
+        }
+      } else {
+        metadata.model = 'gpt-4'; // Default fallback
+      }
+    }
+  }
+  
+  // Extract reasoning/thinking content if available
+  // Look for a thought panel which appears in the new interface
+  const thoughtPanel = container.querySelector('span[data-state="closed"] > button');
+  const hasThinker = thoughtPanel && thoughtPanel.textContent.includes('Thought for');
+  
+  if (hasThinker) {
+    console.log('extractAssistantMessage: Found thought panel');
+    // Try to find the thought content
+    const thoughtContent = container.querySelector('.text-token-text-secondary.text-sm.markdown');
+    
+    if (thoughtContent) {
+      metadata.reasoning = thoughtContent.textContent.trim();
+      console.log('extractAssistantMessage: Extracted reasoning from thought content');
+    } else {
+      // Alternative method to find thought content
+      const parentDiv = thoughtPanel.closest('.relative');
+      const thoughtBlock = parentDiv?.querySelector('.text-token-text-secondary');
+      
+      if (thoughtBlock) {
+        metadata.reasoning = thoughtBlock.textContent.trim();
+        console.log('extractAssistantMessage: Extracted reasoning from thought block');
+      }
+    }
+  }
+  
+  // Add code blocks to metadata if found
+  if (codeBlocks.length > 0) {
+    metadata.code_blocks = codeBlocks;
+    console.log(`extractAssistantMessage: Added ${codeBlocks.length} code blocks to metadata`);
+  }
+  
+  // Add additional requested fields
+  metadata.name = 'ChatGPT Conversation';
+  metadata.harmType = 'None';
+  
+  if (Object.keys(metadata).length > 0) {
+    messageObj.metadata = metadata;
+  }
+  
+  return messageObj;
+}
+
+// ChatGPT conversation extractor (for chat.openai.com)
 function extractChatGPTConversation() {
   const messages = [];
   
@@ -93,6 +512,10 @@ function extractChatGPTConversation() {
           }
         }
         
+        // Add additional requested fields
+        metadata.name = 'ChatGPT Conversation';
+        metadata.harmType = 'None';
+        
         if (Object.keys(metadata).length > 0) {
           messageObj.metadata = metadata;
         }
@@ -106,6 +529,32 @@ function extractChatGPTConversation() {
     if (assistantMessage) {
       const markdownContent = assistantMessage.querySelector('.markdown');
       if (markdownContent) {
+        // Look for code blocks first
+        const codeBlocks = [];
+        const preElements = markdownContent.querySelectorAll('pre');
+        
+        preElements.forEach(pre => {
+          const codeElement = pre.querySelector('code');
+          if (codeElement) {
+            // Try to get the language from the container div class
+            let language = 'plaintext';
+            const langDiv = pre.querySelector('div.flex.items-center');
+            if (langDiv && langDiv.textContent) {
+              language = langDiv.textContent.trim();
+            }
+            
+            // Get the code content
+            const code = codeElement.textContent.trim();
+            if (code) {
+              codeBlocks.push({
+                language: language,
+                code: code
+              });
+            }
+          }
+        });
+        
+        // Get text content
         const text = markdownContent.innerText.trim();
         if (text) {
           const messageObj = {
@@ -120,6 +569,22 @@ function extractChatGPTConversation() {
           const modelSlug = assistantMessage.getAttribute('data-message-model-slug');
           if (modelSlug) {
             metadata.model = modelSlug;
+          } else {
+            // Try to find model name in UI elements
+            const modelElement = turn.querySelector('[data-state="closed"] button[aria-label="Copy"]')
+                                 ?.closest('[data-state="closed"]')
+                                 ?.nextElementSibling;
+                                 
+            if (modelElement && modelElement.textContent.includes('4o')) {
+              metadata.model = 'gpt-4o';
+            } else {
+              metadata.model = 'gpt-4'; // default fallback
+            }
+          }
+          
+          // Add code blocks to metadata if found
+          if (codeBlocks.length > 0) {
+            metadata.code_blocks = codeBlocks;
           }
           
           // Find and extract chain of thought/reasoning
@@ -130,7 +595,7 @@ function extractChatGPTConversation() {
             // First, try to get the reasoning summary
             const reasoningButton = reasoningSpan.querySelector('button');
             const reasoningSummary = reasoningButton?.querySelector('span.text-start')?.textContent?.trim() || 
-                                    reasoningSpan.childNodes[0]?.textContent?.trim();
+                                   reasoningSpan.childNodes[0]?.textContent?.trim();
             
             // Next, look for the detailed reasoning content which could be in several possible locations
             let reasoningContent = '';
@@ -183,6 +648,10 @@ function extractChatGPTConversation() {
               }
             }
           }
+          
+          // Add additional requested fields
+          metadata.name = 'ChatGPT Conversation';
+          metadata.harmType = 'None';
           
           if (Object.keys(metadata).length > 0) {
             messageObj.metadata = metadata;
@@ -401,6 +870,10 @@ function extractDeepSeekConversation() {
             }
           }
           
+          // Add additional requested fields
+          metadata.name = 'DeepSeek Conversation';
+          metadata.harmType = 'None';
+          
           if (Object.keys(metadata).length > 0) {
             messageObj.metadata = metadata;
           }
@@ -503,6 +976,10 @@ function extractDeepSeekConversation() {
           }
         }
         
+        // Add additional requested fields
+        metadata.name = 'DeepSeek Conversation';
+        metadata.harmType = 'None';
+        
         if (Object.keys(metadata).length > 0) {
           messageObj.metadata = metadata;
         }
@@ -597,6 +1074,31 @@ function extractClaudeConversation() {
               text = mainContentDiv.textContent.trim();
             }
             
+            // Extract code blocks
+            let codeBlocks = [];
+            const preElements = mainContentDiv.querySelectorAll('pre');
+            if (preElements.length) {
+              preElements.forEach(pre => {
+                const codeElement = pre.querySelector('code');
+                if (codeElement) {
+                  // Try to extract language info
+                  let language = 'plaintext';
+                  const langDiv = pre.querySelector('.text-text-300');
+                  if (langDiv && langDiv.textContent) {
+                    language = langDiv.textContent.trim();
+                  }
+                  // Get the code content
+                  const code = codeElement.textContent.trim();
+                  if (code) {
+                    codeBlocks.push({
+                      language: language,
+                      code: code
+                    });
+                  }
+                }
+              });
+            }
+            
             // Look for thinking content
             let thinking = null;
             const thoughtsPanel = claudeMessage.querySelector('.mb-2.border-0\\.5.border-border-300.rounded-lg');
@@ -628,6 +1130,7 @@ function extractClaudeConversation() {
               type: 'assistant',
               text: text,
               thinking: thinking,
+              codeBlocks: codeBlocks,
               position: element.getBoundingClientRect().top
             });
           }
@@ -678,6 +1181,15 @@ function extractClaudeConversation() {
         if (item.thinking) {
           metadata.reasoning = item.thinking;
         }
+        
+        // Add code blocks to metadata if present
+        if (item.codeBlocks && item.codeBlocks.length > 0) {
+          metadata.code_blocks = item.codeBlocks;
+        }
+
+        // Add additional requested fields
+        metadata.name = 'Claude Conversation';
+        metadata.harmType = 'None';
         
         // Only add metadata if we found something
         if (Object.keys(metadata).length > 0) {
@@ -741,6 +1253,10 @@ function extractGeminiConversation() {
     console.log('Extracting Gemini conversation');
     const messages = [];
     
+    // Add detailed debug logging to help diagnose issues
+    console.log('URL:', window.location.href);
+    console.log('Page title:', document.title);
+    
     // Find all user queries and model responses throughout the page
     // Not limiting to a specific container allows us to capture all messages
     const userQueries = document.querySelectorAll('user-query');
@@ -749,34 +1265,75 @@ function extractGeminiConversation() {
     console.log('Found Gemini user queries:', userQueries.length);
     console.log('Found Gemini model responses:', modelResponses.length);
     
+    // Debug: Log structure of first user query and model response if found
+    if (userQueries.length > 0) {
+      console.log('First user query HTML:', userQueries[0].outerHTML.substring(0, 500) + '...');
+    }
+    if (modelResponses.length > 0) {
+      console.log('First model response HTML:', modelResponses[0].outerHTML.substring(0, 500) + '...');
+    }
+    
     if (!userQueries.length && !modelResponses.length) {
-      console.log('No Gemini messages found');
-      return null;
+      console.log('No Gemini messages found using primary selectors, trying alternative selectors...');
+      
+      // Try alternative selectors that might be used in different versions of Gemini interface
+      const alternativeUserMessages = document.querySelectorAll('.user-message, .human-message, [data-role="user"], .query-container');
+      const alternativeAssistantMessages = document.querySelectorAll('.model-message, .assistant-message, [data-role="assistant"], .response-container');
+      
+      console.log('Found alternative user messages:', alternativeUserMessages.length);
+      console.log('Found alternative assistant messages:', alternativeAssistantMessages.length);
+      
+      if (alternativeUserMessages.length > 0 || alternativeAssistantMessages.length > 0) {
+        return extractGeminiConversationAlternative();
+      }
+      
+      // If still no messages found using direct selectors, try a more generic approach
+      return extractGeminiConversationGeneric();
     }
     
     // Create a timeline for proper message ordering
     const timeline = [];
     
     // Process user messages
-    userQueries.forEach(query => {
+    userQueries.forEach((query, index) => {
+      console.log(`Processing user query #${index + 1}`);
       const queryContent = query.querySelector('user-query-content');
       const queryTextElement = queryContent ? queryContent.querySelector('.query-text') : query.querySelector('.query-text');
       
       if (queryTextElement) {
         const text = queryTextElement.textContent.trim();
         if (text) {
+          console.log(`Added user message #${index + 1}: ${text.substring(0, 30)}...`);
           timeline.push({
             type: 'user',
             text: text,
             position: query.getBoundingClientRect().top,
-            element: query // Store reference to the element for debugging
+            element: query, // Store reference to the element for debugging
+            index: index // Store original index for additional sorting stability
+          });
+        } else {
+          console.log(`Empty text content in user query #${index + 1}`);
+        }
+      } else {
+        console.log(`Could not find text element in user query #${index + 1}, trying alternative approach`);
+        // Try a more generic approach to extract text
+        const text = query.textContent.trim();
+        if (text) {
+          console.log(`Added user message #${index + 1} using fallback: ${text.substring(0, 30)}...`);
+          timeline.push({
+            type: 'user',
+            text: text,
+            position: query.getBoundingClientRect().top,
+            element: query,
+            index: index
           });
         }
       }
     });
     
     // Process assistant messages
-    modelResponses.forEach(response => {
+    modelResponses.forEach((response, index) => {
+      console.log(`Processing model response #${index + 1}`);
       const responseContainer = response.querySelector('response-container');
       const messageContent = response.querySelector('message-content.model-response-text');
       
@@ -801,13 +1358,53 @@ function extractGeminiConversation() {
             }
           }
           
+          console.log(`Added assistant message #${index + 1}: ${text.substring(0, 30)}...`);
           timeline.push({
             type: 'assistant',
             text: text,
             thinking: thinking,
             position: response.getBoundingClientRect().top,
-            element: response // Store reference to the element for debugging
+            element: response, // Store reference to the element for debugging
+            index: index // Store original index for additional sorting stability
           });
+        } else {
+          console.log(`Empty text content in model response #${index + 1}`);
+        }
+      } else {
+        console.log(`Could not find message content in model response #${index + 1}, trying alternative approach`);
+        // Try alternative content extractors
+        const alternativeContents = [
+          response.querySelector('.markdown-content'),
+          response.querySelector('.response-text'),
+          response.querySelector('[data-content="response"]'),
+          response.querySelector('.message-body')
+        ];
+        
+        const contentElement = alternativeContents.find(el => el && el.textContent.trim());
+        
+        if (contentElement) {
+          const text = contentElement.textContent.trim();
+          console.log(`Added assistant message #${index + 1} using fallback: ${text.substring(0, 30)}...`);
+          timeline.push({
+            type: 'assistant',
+            text: text,
+            position: response.getBoundingClientRect().top,
+            element: response,
+            index: index
+          });
+        } else {
+          // Last resort: try to get any text content from the response
+          const text = response.textContent.trim();
+          if (text) {
+            console.log(`Added assistant message #${index + 1} using last resort: ${text.substring(0, 30)}...`);
+            timeline.push({
+              type: 'assistant',
+              text: text,
+              position: response.getBoundingClientRect().top,
+              element: response,
+              index: index
+            });
+          }
         }
       }
     });
@@ -816,17 +1413,97 @@ function extractGeminiConversation() {
     console.log('Timeline before sorting:', timeline.map(item => ({
       type: item.type,
       position: item.position,
+      index: item.index,
       textPreview: item.text.substring(0, 30) + '...'
     })));
     
+    // First, check if we have a reasonable number of messages
+    if (timeline.length === 0) {
+      console.log('No messages found in timeline, trying alternative extraction method');
+      return extractGeminiConversationAlternative();
+    }
+    
     // Sort timeline by vertical position
-    timeline.sort((a, b) => a.position - b.position);
+    timeline.sort((a, b) => {
+      // First sort by position
+      const positionDiff = a.position - b.position;
+      if (Math.abs(positionDiff) > 5) { // Use a small threshold to account for minor position differences
+        return positionDiff;
+      }
+      // If positions are very close, use the original index as a tiebreaker
+      return a.index - b.index;
+    });
     
     console.log('Timeline after sorting:', timeline.map(item => ({
       type: item.type,
       position: item.position,
+      index: item.index,
       textPreview: item.text.substring(0, 30) + '...'
     })));
+    
+    // Check if the timeline has a reasonable pattern of user/assistant messages
+    let userCount = 0;
+    let assistantCount = 0;
+    let consecutiveUserMessages = 0;
+    let maxConsecutiveUserMessages = 0;
+    
+    timeline.forEach(item => {
+      if (item.type === 'user') {
+        userCount++;
+        consecutiveUserMessages++;
+        maxConsecutiveUserMessages = Math.max(maxConsecutiveUserMessages, consecutiveUserMessages);
+      } else {
+        assistantCount++;
+        consecutiveUserMessages = 0;
+      }
+    });
+    
+    console.log(`User messages: ${userCount}, Assistant messages: ${assistantCount}, Max consecutive user messages: ${maxConsecutiveUserMessages}`);
+    
+    // If we have many more user messages than assistant messages, or too many consecutive user messages,
+    // there might be a problem with the extraction or sorting
+    if ((userCount > assistantCount * 2 && userCount > 3) || maxConsecutiveUserMessages > 3) {
+      console.warn('Possible extraction issue: imbalanced message counts or too many consecutive user messages');
+      // Try to repair the timeline by alternating user/assistant messages if we have enough messages
+      if (userCount >= 2 && timeline.length >= 3) {
+        console.log('Attempting to repair timeline by enforcing alternating pattern');
+        const repairedTimeline = [];
+        let lastType = null;
+        
+        for (const item of timeline) {
+          // If we're getting the same type twice in a row, try to find the next item of the other type
+          if (lastType === item.type) {
+            const neededType = lastType === 'user' ? 'assistant' : 'user';
+            const nextDifferentItem = timeline.find(i => i.type === neededType && !repairedTimeline.includes(i));
+            
+            if (nextDifferentItem) {
+              repairedTimeline.push(nextDifferentItem);
+              lastType = nextDifferentItem.type;
+            }
+          }
+          
+          if (!repairedTimeline.includes(item)) {
+            repairedTimeline.push(item);
+            lastType = item.type;
+          }
+        }
+        
+        // If the repair looks better, use it
+        if (repairedTimeline.length >= timeline.length * 0.8) {
+          console.log('Using repaired timeline');
+          timeline.length = 0;
+          timeline.push(...repairedTimeline);
+        } else {
+          console.log('Repair did not produce good results, reverting to original timeline');
+        }
+      }
+      
+      // If we still have issues, try the alternative extraction method
+      if ((userCount > assistantCount * 2 && userCount > 3) || maxConsecutiveUserMessages > 3) {
+        console.log('Still having issues, trying alternative extraction method');
+        return extractGeminiConversationAlternative();
+      }
+    }
     
     // Convert timeline to messages array
     timeline.forEach(item => {
@@ -855,6 +1532,10 @@ function extractGeminiConversation() {
           metadata.reasoning = item.thinking;
         }
         
+        // Add additional requested fields
+        metadata.name = 'Gemini Conversation';
+        metadata.harmType = 'None';
+        
         // Only add metadata if we found something
         if (Object.keys(metadata).length > 0) {
           messageObj.metadata = metadata;
@@ -865,9 +1546,282 @@ function extractGeminiConversation() {
     });
     
     console.log('Final Gemini messages array with metadata:', messages);
+    
+    // Final validation: check for a reasonable pattern of messages
+    if (messages.length >= 2) {
+      let validPattern = true;
+      let lastRole = null;
+      let consecutiveSameRole = 0;
+      
+      for (const message of messages) {
+        if (message.role === lastRole) {
+          consecutiveSameRole++;
+          if (consecutiveSameRole > 2) {
+            validPattern = false;
+            break;
+          }
+        } else {
+          consecutiveSameRole = 0;
+          lastRole = message.role;
+        }
+      }
+      
+      if (!validPattern) {
+        console.warn('Final message array has suspicious pattern, trying alternative method');
+        return extractGeminiConversationAlternative();
+      }
+    }
+    
     return messages.length ? { messages } : null;
   } catch (error) {
     console.error('Error in extractGeminiConversation:', error);
+    console.log('Trying alternative extraction method after error');
+    try {
+      return extractGeminiConversationAlternative();
+    } catch (alternativeError) {
+      console.error('Error in alternative extraction method:', alternativeError);
+      return null;
+    }
+  }
+}
+
+// Alternative extraction method for Gemini conversations
+function extractGeminiConversationAlternative() {
+  console.log('Using alternative extraction method for Gemini conversation');
+  const messages = [];
+  
+  try {
+    // Find the main conversation container - try multiple selectors
+    const possibleContainers = [
+      document.querySelector('main-view'),
+      document.querySelector('#chat-container'),
+      document.querySelector('.conversation-container'),
+      document.querySelector('main.flex-1'),
+      document.querySelector('.chat-scroll-container'),
+      document.body // fallback to body if no specialized container is found
+    ];
+    
+    const container = possibleContainers.find(c => c !== null);
+    if (!container) {
+      console.error('Could not find any container for Gemini conversation');
+      return null;
+    }
+    
+    console.log('Found alternative container:', container.tagName);
+    
+    // Look for elements that might signify a message
+    const messageContainers = container.querySelectorAll('div[style*="padding"], section, article, .message');
+    console.log('Found potential message containers:', messageContainers.length);
+    
+    if (messageContainers.length === 0) {
+      return extractGeminiConversationGeneric();
+    }
+    
+    // Filter to elements that have a reasonable amount of text content
+    const potentialMessages = Array.from(messageContainers).filter(el => {
+      const text = el.textContent.trim();
+      return text.length > 20 && text.length < 10000; // Reasonable message length
+    });
+    
+    console.log('Found potential messages after filtering:', potentialMessages.length);
+    
+    // Create a timeline with position information
+    const timeline = [];
+    
+    // Helper function to check if element is likely a user message
+    function isLikelyUserMessage(element) {
+      // Check for common user message indicators
+      const indicators = [
+        element.querySelector('svg path[d*="M15.5 14"]'), // User icon common in Google interfaces
+        element.querySelector('img[src*="profile"]'),
+        element.classList.contains('user'),
+        element.classList.contains('human'),
+        element.getAttribute('data-role') === 'user',
+        element.textContent.includes('You:'),
+        element.style.backgroundColor === 'rgb(241, 243, 244)' || element.style.backgroundColor === '#f1f3f4' // Common user message background
+      ];
+      
+      return indicators.some(i => i);
+    }
+    
+    // Helper function to check if element is likely an assistant message
+    function isLikelyAssistantMessage(element) {
+      // Check for common assistant message indicators
+      const indicators = [
+        element.querySelector('svg path[d*="M9.5 13.5"]'), // Gemini icon path
+        element.querySelector('img[src*="gemini"]'),
+        element.querySelector('img[src*="assistant"]'),
+        element.classList.contains('assistant'),
+        element.classList.contains('bot'),
+        element.classList.contains('model'),
+        element.getAttribute('data-role') === 'assistant',
+        element.textContent.includes('Gemini:')
+      ];
+      
+      return indicators.some(i => i);
+    }
+    
+    // Process each potential message
+    potentialMessages.forEach((element, index) => {
+      // Skip elements that are too small or are likely UI controls
+      if (element.clientHeight < 30 || element.textContent.length < 20) {
+        return;
+      }
+      
+      // Determine message type
+      const isUser = isLikelyUserMessage(element);
+      const isAssistant = isLikelyAssistantMessage(element);
+      
+      let messageType = null;
+      
+      // If we can directly determine the type, use it
+      if (isUser && !isAssistant) {
+        messageType = 'user';
+      } else if (isAssistant && !isUser) {
+        messageType = 'assistant';
+      } else {
+        // Otherwise, use position-based heuristic (even indexes are user, odd are assistant)
+        messageType = timeline.length % 2 === 0 ? 'user' : 'assistant';
+      }
+      
+      // Extract message text
+      let text = element.textContent.trim();
+      
+      // Try to clean up the text by removing UI elements text
+      const buttonTexts = Array.from(element.querySelectorAll('button')).map(b => b.textContent.trim());
+      buttonTexts.forEach(btnText => {
+        if (btnText.length > 0) {
+          text = text.replace(btnText, '');
+        }
+      });
+      
+      // Remove common UI texts in Gemini
+      ['Copy', 'Thumbs up', 'Thumbs down', 'Share', 'More actions', 'Send', 'Regenerate'].forEach(uiText => {
+        text = text.replace(uiText, '');
+      });
+      
+      text = text.trim();
+      
+      if (text.length > 0) {
+        console.log(`Added ${messageType} message #${index} using alternative method: ${text.substring(0, 30)}...`);
+        timeline.push({
+          type: messageType,
+          text: text,
+          position: element.getBoundingClientRect().top,
+          index: index
+        });
+      }
+    });
+    
+    // Sort by position
+    timeline.sort((a, b) => a.position - b.position);
+    
+    // Convert to message format
+    let lastType = null;
+    
+    timeline.forEach(item => {
+      // Skip consecutive messages of the same type
+      if (item.type === lastType) {
+        return;
+      }
+      
+      lastType = item.type;
+      
+      if (item.type === 'user') {
+        messages.push({
+          role: 'user',
+          content: [{ type: 'text', text: item.text }]
+        });
+      } else {
+        const messageObj = {
+          role: 'assistant',
+          content: [{ type: 'text', text: item.text }],
+          metadata: {
+            model: getGeminiModelName() || 'Gemini',
+            name: 'Gemini Conversation',
+            harmType: 'None'
+          }
+        };
+        
+        messages.push(messageObj);
+      }
+    });
+    
+    console.log('Final messages from alternative method:', messages);
+    return messages.length ? { messages } : null;
+  } catch (error) {
+    console.error('Error in extractGeminiConversationAlternative:', error);
+    return null;
+  }
+}
+
+// Generic extraction method as a last resort
+function extractGeminiConversationGeneric() {
+  console.log('Using generic extraction method for Gemini conversation');
+  const messages = [];
+  
+  try {
+    // Get all paragraphs and large text blocks on the page
+    const textElements = document.querySelectorAll('p, div > span, div[style*="margin"]');
+    console.log('Found potential text elements:', textElements.length);
+    
+    // Filter to elements with sufficient text
+    const substantialElements = Array.from(textElements).filter(el => {
+      const text = el.textContent.trim();
+      return text.length > 30 && text.length < 10000 && !el.querySelector('button');
+    });
+    
+    console.log('Substantial text elements:', substantialElements.length);
+    
+    if (substantialElements.length < 2) {
+      console.log('Not enough substantial text elements found');
+      return null;
+    }
+    
+    // Create timeline
+    const timeline = [];
+    
+    // Process text elements
+    substantialElements.forEach((element, index) => {
+      const text = element.textContent.trim();
+      
+      // Simple heuristic: alternate user/assistant roles
+      const type = index % 2 === 0 ? 'user' : 'assistant';
+      
+      timeline.push({
+        type: type,
+        text: text,
+        position: element.getBoundingClientRect().top,
+        index: index
+      });
+    });
+    
+    // Sort by position
+    timeline.sort((a, b) => a.position - b.position);
+    
+    // Convert to messages
+    timeline.forEach(item => {
+      if (item.type === 'user') {
+        messages.push({
+          role: 'user',
+          content: [{ type: 'text', text: item.text }]
+        });
+      } else {
+        messages.push({
+          role: 'assistant',
+          content: [{ type: 'text', text: item.text }],
+          metadata: {
+            model: 'Gemini',
+            name: 'Gemini Conversation',
+            harmType: 'None'
+          }
+        });
+      }
+    });
+    
+    return messages.length ? { messages } : null;
+  } catch (error) {
+    console.error('Error in extractGeminiConversationGeneric:', error);
     return null;
   }
 }
@@ -1016,6 +1970,10 @@ function extractAIStudioConversation() {
             if (thinkingText) {
               metadata.reasoning = thinkingText;
             }
+            
+            // Add additional requested fields
+            metadata.name = 'AIStudio Conversation';
+            metadata.harmType = 'None';
             
             // Add metadata to message if we found any
             if (Object.keys(metadata).length > 0) {

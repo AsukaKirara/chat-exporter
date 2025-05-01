@@ -6,13 +6,15 @@
   "permissions": [
     "activeTab",
     "downloads",
-    "tabs",
     "scripting"
   ],
   "host_permissions": [
-    "https://gemini.google.com/*",
+    "https://chat.openai.com/*",
     "https://claude.ai/*",
-    "https://chat.openai.com/*"
+    "https://gemini.google.com/*",
+    "https://chat.deepseek.com/*",
+    "https://aistudio.google.com/*",
+    "https://chatgpt.com/*"
   ],
   "action": {
     "default_popup": "popup.html"
