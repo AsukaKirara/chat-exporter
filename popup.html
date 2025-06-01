@@ -29,8 +29,15 @@
 </head>
 <body>
   <h2>LLM Conversation Exporter</h2>
+  <input id="email" type="email" placeholder="Email" />
+  <input id="password" type="password" placeholder="Password" />
+  <button id="loginBtn">Login</button>
+  <button id="logoutBtn">Logout</button>
   <button id="exportBtn">Export Conversation</button>
   <div id="status"></div>
+  <a href="https://chat-history.example.com" target="_blank">Manage Chat History</a>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="auth.js"></script>
   <script src="popup.js"></script>
 </body>
-</html> 
+</html>

@@ -1,6 +1,7 @@
 # AI Chat Exporter
 
 A browser extension that allows you to export your conversations from popular AI chat platforms into JSON format for archiving, analysis, or sharing.
+The JSON structure follows a common format used across many chat exporters so it can easily be ingested by other tools.
 
 ## Features
 
@@ -8,6 +9,9 @@ A browser extension that allows you to export your conversations from popular AI
 - Download conversation data as JSON files
 - Simple one-click export process
 - Works directly in your browser without needing to copy/paste
+- Optional Supabase authentication
+- Upload exports to S3-compatible storage for backup
+- Link to a management website for browsing your history
 
 ## Supported Platforms
 
@@ -32,8 +36,9 @@ A browser extension that allows you to export your conversations from popular AI
 1. Visit any supported AI chat platform
 2. Have a conversation with the AI
 3. Click on the AI Chat Exporter icon in your browser toolbar
-4. Click the "Export Conversation" button
-5. The conversation will be downloaded as a JSON file to your default download location
+4. Log in with your Supabase credentials (if you want cloud backup)
+5. Click the "Export Conversation" button
+6. The conversation will be downloaded as a JSON file and uploaded to your S3-compatible storage
 
 ## How It Works
 
@@ -70,6 +75,10 @@ The exported JSON has the following format:
   ]
 }
 ```
+
+## Authentication & Cloud Storage
+
+If you log in with your Supabase account, each export is also uploaded to an S3-compatible bucket named `chat-exports`. You can browse these uploads at [chat-history.example.com](https://chat-history.example.com).
 
 ## Privacy
 
