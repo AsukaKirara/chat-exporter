@@ -1,4 +1,7 @@
+document.getElementById('signupBtn').addEventListener('click', signup);
 document.getElementById('loginBtn').addEventListener('click', login);
+document.getElementById('googleBtn').addEventListener('click', loginWithGoogle);
+document.getElementById('appleBtn').addEventListener('click', loginWithApple);
 document.getElementById('logoutBtn').addEventListener('click', logout);
 
 document.getElementById('exportBtn').addEventListener('click', async () => {
@@ -55,9 +58,10 @@ document.getElementById('exportBtn').addEventListener('click', async () => {
       }
     }
     
+    const BUCKET = 'chat-exports';
     const filePath = `${user.id}/${timestamp}.json`;
     const { error: uploadError } = await supabase.storage
-      .from('chat-exports')
+      .from(BUCKET)
       .upload(filePath, blob, { contentType: 'application/json' });
 
     if (uploadError) {
@@ -65,9 +69,17 @@ document.getElementById('exportBtn').addEventListener('click', async () => {
       return;
     }
 
+    // Record metadata in Supabase
+    const title = `${harmType} - ${modelName} - ${name} - ${timestamp}`;
+    await supabase.from('records').insert({
+      user_id: user.id,
+      title,
+      path: filePath
+    });
+
     await chrome.downloads.download({
       url: url,
-      filename: `${harmType} - ${modelName} - ${name} - ${timestamp}.json`
+      filename: title + '.json'
     });
 
     statusDiv.textContent = 'Exported and uploaded!';
