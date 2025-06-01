@@ -9,9 +9,9 @@ The JSON structure follows a common format used across many chat exporters so it
 - Download conversation data as JSON files
 - Simple one-click export process
 - Works directly in your browser without needing to copy/paste
-- Optional Supabase authentication
+- Supabase-based registration and login (email/password, Google, Apple)
 - Upload exports to S3-compatible storage for backup
-- Link to a management website for browsing your history
+- Link to a management website for browsing your history and purchases
 
 ## Supported Platforms
 
@@ -31,14 +31,20 @@ The JSON structure follows a common format used across many chat exporters so it
 4. Click "Load unpacked" and select the directory containing the extension files
 5. The extension icon should now appear in your browser toolbar
 
+### Database Setup
+
+Run the SQL script `prepal_migration.sql` against your Supabase project to create the user profile and purchase tables used by the dashboard.
+
 ## Usage
 
 1. Visit any supported AI chat platform
 2. Have a conversation with the AI
 3. Click on the AI Chat Exporter icon in your browser toolbar
-4. Log in with your Supabase credentials (if you want cloud backup)
+4. Sign up or log in with your Supabase account (email/password, Google or Apple)
 5. Click the "Export Conversation" button
 6. The conversation will be downloaded as a JSON file and uploaded to your S3-compatible storage
+7. Open `dashboard/index.html` to view your profile, chat records, and purchase history
+8. Use the "Purchase Service" button to pay via Stripe
 
 ## How It Works
 
@@ -78,7 +84,7 @@ The exported JSON has the following format:
 
 ## Authentication & Cloud Storage
 
-If you log in with your Supabase account, each export is also uploaded to an S3-compatible bucket named `chat-exports`. You can browse these uploads at [chat-history.example.com](https://chat-history.example.com).
+If you log in with your Supabase account, each export is also uploaded to an S3-compatible bucket named `chat-exports`. You can browse these uploads as chat records and manage purchases through `dashboard/index.html`. Payments are processed using Stripe checkout.
 
 ## Privacy
 
@@ -92,6 +98,13 @@ Contributions are welcome! If you'd like to add support for additional AI chat p
 2. Create a feature branch
 3. Make your changes
 4. Submit a pull request
+
+## Admin Dashboard
+
+The `dashboard/admin.html` page lists all users in your Supabase project. Serve
+it from a backend environment that injects `SUPABASE_SERVICE_KEY` so that the
+Supabase client can access admin APIs without exposing your service key in
+client-side code.
 
 ## License
 

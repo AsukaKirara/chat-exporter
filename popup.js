@@ -1,4 +1,7 @@
+document.getElementById('signupBtn').addEventListener('click', signup);
 document.getElementById('loginBtn').addEventListener('click', login);
+document.getElementById('googleBtn').addEventListener('click', loginWithGoogle);
+document.getElementById('appleBtn').addEventListener('click', loginWithApple);
 document.getElementById('logoutBtn').addEventListener('click', logout);
 
 document.getElementById('exportBtn').addEventListener('click', async () => {
