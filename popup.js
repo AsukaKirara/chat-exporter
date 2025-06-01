@@ -1,6 +1,18 @@
+document.getElementById('loginBtn').addEventListener('click', login);
+document.getElementById('logoutBtn').addEventListener('click', logout);
+
 document.getElementById('exportBtn').addEventListener('click', async () => {
   const statusDiv = document.getElementById('status');
   statusDiv.textContent = 'Exporting...';
+
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    statusDiv.textContent = 'Please log in first';
+    return;
+  }
 
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -43,12 +55,22 @@ document.getElementById('exportBtn').addEventListener('click', async () => {
       }
     }
     
+    const filePath = `${user.id}/${timestamp}.json`;
+    const { error: uploadError } = await supabase.storage
+      .from('chat-exports')
+      .upload(filePath, blob, { contentType: 'application/json' });
+
+    if (uploadError) {
+      statusDiv.textContent = 'Upload failed: ' + uploadError.message;
+      return;
+    }
+
     await chrome.downloads.download({
       url: url,
       filename: `${harmType} - ${modelName} - ${name} - ${timestamp}.json`
     });
 
-    statusDiv.textContent = 'Export successful!';
+    statusDiv.textContent = 'Exported and uploaded!';
   } catch (error) {
     console.error('Export failed:', error);
     statusDiv.textContent = 'Export failed: ' + error.message;
