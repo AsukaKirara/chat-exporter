@@ -1,7 +1,9 @@
 const SUPABASE_URL = 'https://YOUR-SUPABASE-PROJECT.supabase.co';
 const SUPABASE_KEY = 'YOUR-SUPABASE-ANON-KEY';
+
+const BUCKET = 'chat-exports';
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-const STRIPE_PK = 'YOUR-STRIPE-PUBLISHABLE-KEY';
+
 
 async function loadUser() {
   const { data: { user } } = await supabase.auth.getUser();
@@ -10,59 +12,61 @@ async function loadUser() {
     return;
   }
   document.getElementById('user').textContent = user.email;
-  const { data, error } = await supabase
+
+  const { data: purchases, error: purchaseError } = await supabase
     .from('purchases')
     .select('product, amount, created_at')
     .eq('user_id', user.id);
-  if (error) {
-    console.error(error);
+  if (purchaseError) {
+    console.error(purchaseError);
     return;
   }
   const list = document.getElementById('purchases');
-  data.forEach(row => {
+  purchases.forEach(row => {
+
     const li = document.createElement('li');
     li.textContent = `${row.product} - $${row.amount} on ${row.created_at}`;
     list.appendChild(li);
   });
 
-  await loadExports(user.id);
+
+  const { data: records, error: recordsError } = await supabase
+    .from('records')
+    .select('title, path')
+    .eq('user_id', user.id);
+  if (recordsError) {
+    console.error(recordsError);
+    return;
+  }
+  const recList = document.getElementById('records');
+  for (const rec of records) {
+    const { data: signed } = await supabase.storage
+      .from(BUCKET)
+      .createSignedUrl(rec.path, 60 * 60);
+    const li = document.createElement('li');
+    const link = document.createElement('a');
+    link.href = signed.signedUrl;
+    link.textContent = rec.title;
+    link.target = '_blank';
+    li.appendChild(link);
+    recList.appendChild(li);
+  }
+
 }
 
 async function createPurchase() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return;
-  const response = await fetch('/create-checkout-session', {
+
+  const res = await fetch('/create-checkout-session', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ user_id: user.id })
+    body: JSON.stringify({ user: user.id })
   });
-  const { sessionId } = await response.json();
-  const stripe = Stripe(STRIPE_PK);
-  await stripe.redirectToCheckout({ sessionId });
-}
+  const json = await res.json();
+  const stripe = Stripe('pk_test_YOUR_PUBLIC_KEY');
+  await stripe.redirectToCheckout({ sessionId: json.sessionId });
 
-async function loadExports(userId) {
-  const { data, error } = await supabase.storage
-    .from('chat-exports')
-    .list(`${userId}`);
-  if (error) {
-    console.error(error);
-    return;
-  }
-  const list = document.getElementById('records');
-  list.innerHTML = '';
-  for (const file of data) {
-    const li = document.createElement('li');
-    const { data: signed } = await supabase.storage
-      .from('chat-exports')
-      .createSignedUrl(`${userId}/${file.name}`, 60);
-    const a = document.createElement('a');
-    a.href = signed.signedUrl;
-    a.textContent = file.name;
-    a.target = '_blank';
-    li.appendChild(a);
-    list.appendChild(li);
-  }
 }
 
 document.getElementById('buyBtn').addEventListener('click', createPurchase);
