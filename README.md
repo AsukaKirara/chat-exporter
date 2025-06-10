@@ -10,7 +10,9 @@ The JSON structure follows a common format used across many chat exporters so it
 - Simple one-click export process
 - Works directly in your browser without needing to copy/paste
 - Supabase-based registration and login (email/password, Google, Apple)
+
 - Upload exports to a private Supabase Storage bucket for backup
+
 - Link to a management website for browsing your history and purchases
 
 ## Supported Platforms
@@ -40,11 +42,13 @@ Run the SQL script `prepal_migration.sql` against your Supabase project to creat
 1. Visit any supported AI chat platform
 2. Have a conversation with the AI
 3. Click on the AI Chat Exporter icon in your browser toolbar
+
 4. Sign up or log in to your Prepal account using Supabase Auth (email/password, Google or Apple)
 5. Click the "Export Conversation" button
 6. The conversation will be downloaded as a JSON file and uploaded to your private Supabase bucket
 7. Open `dashboard/index.html` to view your profile and purchase history
 8. Use the "Purchase Service" button to upgrade via Stripe Checkout
+
 
 ## How It Works
 
@@ -84,7 +88,9 @@ The exported JSON has the following format:
 
 ## Authentication & Cloud Storage
 
+
 When logged in, each export is uploaded to a private Supabase Storage bucket named `chat-exports`. You can browse these uploads and manage your purchases using the dashboard under `dashboard/index.html`.
+
 
 ## Privacy
 
@@ -112,6 +118,7 @@ The dashboard integrates with Stripe Checkout for purchasing the premium plan.
 It expects a backend endpoint at `/create-checkout-session` that returns a
 `sessionId` for Stripe. After successful payment, record the purchase in the
 `purchases` table using a webhook or server-side logic.
+
 
 ## License
 

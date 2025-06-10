@@ -1,7 +1,9 @@
 const SUPABASE_URL = 'https://YOUR-SUPABASE-PROJECT.supabase.co';
 const SUPABASE_KEY = 'YOUR-SUPABASE-ANON-KEY';
+
 const BUCKET = 'chat-exports';
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
 
 async function loadUser() {
   const { data: { user } } = await supabase.auth.getUser();
@@ -10,6 +12,7 @@ async function loadUser() {
     return;
   }
   document.getElementById('user').textContent = user.email;
+
   const { data: purchases, error: purchaseError } = await supabase
     .from('purchases')
     .select('product, amount, created_at')
@@ -20,10 +23,12 @@ async function loadUser() {
   }
   const list = document.getElementById('purchases');
   purchases.forEach(row => {
+
     const li = document.createElement('li');
     li.textContent = `${row.product} - $${row.amount} on ${row.created_at}`;
     list.appendChild(li);
   });
+
 
   const { data: records, error: recordsError } = await supabase
     .from('records')
@@ -46,11 +51,13 @@ async function loadUser() {
     li.appendChild(link);
     recList.appendChild(li);
   }
+
 }
 
 async function createPurchase() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return;
+
   const res = await fetch('/create-checkout-session', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -59,6 +66,7 @@ async function createPurchase() {
   const json = await res.json();
   const stripe = Stripe('pk_test_YOUR_PUBLIC_KEY');
   await stripe.redirectToCheckout({ sessionId: json.sessionId });
+
 }
 
 document.getElementById('buyBtn').addEventListener('click', createPurchase);
