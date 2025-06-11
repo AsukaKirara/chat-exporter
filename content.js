@@ -3,13 +3,13 @@ console.log('Content script loaded');
 // Listen for messages from popup
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   console.log('Message received:', request);
-  
+
   if (request.action === 'exportConversation') {
     try {
       // Detect which interface we're on
       const url = window.location.href;
       console.log('Current URL:', url);
-      
+
       let conversation = null;
       
       if (url.includes('chat.openai.com')) {
@@ -38,9 +38,86 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       console.error('Error extracting conversation:', error);
       sendResponse(null);
     }
+  } else if (request.action === 'exportHTML') {
+    try {
+      // Extract HTML content of the conversation
+      const htmlContent = extractConversationHTML();
+      console.log('Extracted HTML content');
+      sendResponse(htmlContent);
+    } catch (error) {
+      console.error('Error extracting HTML:', error);
+      sendResponse(null);
+    }
   }
   return true; // Required for async response
 });
+
+// Function to extract HTML content of the conversation
+function extractConversationHTML() {
+  const url = window.location.href;
+  console.log('Extracting HTML for URL:', url);
+
+  let conversationContainer = null;
+
+  // Detect platform and get conversation container
+  if (url.includes('chatgpt.com')) {
+    conversationContainer = document.querySelector('main[class*="main"]') ||
+                           document.querySelector('[role="main"]') ||
+                           document.querySelector('.conversation-content');
+  } else if (url.includes('claude.ai')) {
+    conversationContainer = document.querySelector('[data-testid="conversation"]') ||
+                           document.querySelector('.conversation-container') ||
+                           document.querySelector('main');
+  } else if (url.includes('gemini.google.com') || url.includes('aistudio.google.com')) {
+    conversationContainer = document.querySelector('.conversation-container') ||
+                           document.querySelector('main') ||
+                           document.querySelector('[role="main"]');
+  } else if (url.includes('deepseek.com')) {
+    conversationContainer = document.querySelector('.conversation-content') ||
+                           document.querySelector('main') ||
+                           document.querySelector('.chat-container');
+  } else if (url.includes('aistudio.google.com')) {
+    conversationContainer = document.querySelector('.conversation') ||
+                           document.querySelector('main');
+  }
+
+  if (!conversationContainer) {
+    console.log('No conversation container found, using document body');
+    conversationContainer = document.body;
+  }
+
+  // Create a clean HTML structure
+  const cleanHTML = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Chat Export - ${new Date().toISOString()}</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .message { margin: 20px 0; padding: 15px; border-radius: 8px; }
+        .user-message { background-color: #f0f0f0; }
+        .assistant-message { background-color: #e8f4fd; }
+        .timestamp { font-size: 0.8em; color: #666; margin-bottom: 10px; }
+        .metadata { font-size: 0.8em; color: #888; margin-top: 10px; }
+        pre { background-color: #f5f5f5; padding: 10px; border-radius: 4px; overflow-x: auto; }
+        code { background-color: #f5f5f5; padding: 2px 4px; border-radius: 2px; }
+    </style>
+</head>
+<body>
+    <h1>Chat Export</h1>
+    <div class="export-info">
+        <p><strong>Exported from:</strong> ${url}</p>
+        <p><strong>Export time:</strong> ${new Date().toLocaleString()}</p>
+    </div>
+    <div class="conversation">
+        ${conversationContainer.innerHTML}
+    </div>
+</body>
+</html>`;
+
+  return cleanHTML;
+}
 
 // ChatGPT.com conversation extractor
 function extractChatGPTDotComConversation() {

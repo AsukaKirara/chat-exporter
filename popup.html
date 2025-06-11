@@ -29,16 +29,33 @@
 </head>
 <body>
   <h2>LLM Conversation Exporter</h2>
-  <input id="email" type="email" placeholder="Email" />
-  <input id="password" type="password" placeholder="Password" />
-  <button id="signupBtn">Sign Up</button>
-  <button id="loginBtn">Login</button>
-  <button id="googleBtn">Google Login</button>
-  <button id="appleBtn">Apple Login</button>
-  <button id="logoutBtn">Logout</button>
-  <button id="exportBtn">Export Conversation</button>
-  <div id="status"></div>
-  <a href="dashboard/index.html" target="_blank">Open Dashboard</a>
+
+  <!-- Always available export functionality -->
+  <div id="exportSection">
+    <button id="exportBtn">Export Conversation</button>
+    <div id="status"></div>
+  </div>
+
+  <!-- Login section -->
+  <div id="loginSection">
+    <h3>Login for Cloud Features</h3>
+    <input id="email" type="email" placeholder="Email" />
+    <input id="password" type="password" placeholder="Password" />
+    <button id="signupBtn">Sign Up</button>
+    <button id="loginBtn">Login</button>
+    <button id="googleBtn">Google Login</button>
+    <button id="appleBtn">Apple Login</button>
+  </div>
+
+  <!-- Logged in user section -->
+  <div id="userSection" style="display: none;">
+    <h3>Welcome!</h3>
+    <div id="userInfo"></div>
+    <button id="logoutBtn">Logout</button>
+    <div id="subscriptionInfo"></div>
+    <a href="dashboard/index.html" target="_blank" id="dashboardLink" style="display: none;">Open Dashboard</a>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="auth.js"></script>
   <script src="popup.js"></script>
