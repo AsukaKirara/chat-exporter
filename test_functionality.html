@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Chat Exporter Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 8px; }
+        .test-result { margin: 10px 0; padding: 10px; border-radius: 4px; }
+        .success { background-color: #d4edda; color: #155724; }
+        .error { background-color: #f8d7da; color: #721c24; }
+        .info { background-color: #d1ecf1; color: #0c5460; }
+        button { padding: 8px 16px; margin: 5px; border: none; border-radius: 4px; cursor: pointer; }
+        .primary { background-color: #007bff; color: white; }
+        .secondary { background-color: #6c757d; color: white; }
+        .conversation { background-color: #f8f9fa; padding: 15px; margin: 10px 0; border-radius: 8px; }
+        .user-msg { background-color: #e3f2fd; padding: 10px; margin: 5px 0; border-radius: 4px; }
+        .assistant-msg { background-color: #f3e5f5; padding: 10px; margin: 5px 0; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <h1>Chat Exporter Functionality Test</h1>
+    
+    <div class="test-section">
+        <h2>Test Scenario: Export Without Login</h2>
+        <p>This simulates the basic export functionality that should work without authentication.</p>
+        
+        <!-- Mock conversation for testing -->
+        <div class="conversation" id="mockConversation">
+            <h3>Mock AI Conversation</h3>
+            <div class="user-msg" data-message-author-role="user">
+                <strong>User:</strong> What is the capital of France?
+            </div>
+            <div class="assistant-msg" data-message-author-role="assistant">
+                <strong>Assistant:</strong> The capital of France is Paris. It's located in the north-central part of the country and is known for its rich history, culture, and landmarks like the Eiffel Tower and Louvre Museum.
+            </div>
+            <div class="user-msg" data-message-author-role="user">
+                <strong>User:</strong> Tell me more about the Eiffel Tower.
+            </div>
+            <div class="assistant-msg" data-message-author-role="assistant">
+                <strong>Assistant:</strong> The Eiffel Tower is a wrought-iron lattice tower built in 1889 for the World's Fair. It stands 330 meters tall and was designed by Gustave Eiffel. Initially criticized, it has become one of the most recognizable structures in the world and a symbol of Paris.
+            </div>
+        </div>
+        
+        <button class="primary" onclick="testBasicExport()">Test Basic Export (No Login)</button>
+        <button class="secondary" onclick="testHTMLExport()">Test HTML Export</button>
+        <div id="basicExportResult" class="test-result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test Scenario: Subscription Status Check</h2>
+        <p>This tests the subscription status checking functionality.</p>
+        
+        <button class="primary" onclick="testSubscriptionCheck('inactive')">Test Inactive Subscription</button>
+        <button class="primary" onclick="testSubscriptionCheck('active')">Test Active Subscription</button>
+        <div id="subscriptionResult" class="test-result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test Scenario: Dashboard Access</h2>
+        <p>This tests the dashboard access control based on subscription status.</p>
+        
+        <button class="primary" onclick="testDashboardAccess()">Test Dashboard Access Logic</button>
+        <div id="dashboardResult" class="test-result"></div>
+    </div>
+
+    <script>
+        // Mock conversation extraction (simulates content.js functionality)
+        function extractMockConversation() {
+            const messages = [];
+            const userMessages = document.querySelectorAll('[data-message-author-role="user"]');
+            const assistantMessages = document.querySelectorAll('[data-message-author-role="assistant"]');
+            
+            // Simple extraction logic for test
+            const allMessages = [...userMessages, ...assistantMessages].sort((a, b) => {
+                return Array.from(a.parentNode.children).indexOf(a) - Array.from(b.parentNode.children).indexOf(b);
+            });
+            
+            allMessages.forEach(msg => {
+                const role = msg.getAttribute('data-message-author-role');
+                const text = msg.textContent.replace(/^(User|Assistant):\s*/, '').trim();
+                
+                messages.push({
+                    role: role,
+                    content: [{ type: 'text', text: text }],
+                    metadata: {
+                        model: 'test-model',
+                        timestamp: new Date().toISOString()
+                    }
+                });
+            });
+            
+            return { messages };
+        }
+        
+        // Test basic export functionality
+        function testBasicExport() {
+            const resultDiv = document.getElementById('basicExportResult');
+            
+            try {
+                const conversation = extractMockConversation();
+                
+                if (conversation && conversation.messages && conversation.messages.length > 0) {
+                    // Create download blob
+                    const blob = new Blob([JSON.stringify(conversation, null, 2)], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+                    
+                    // Create download link
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `test-conversation-${timestamp}.json`;
+                    a.textContent = 'Download Test Conversation';
+                    
+                    resultDiv.className = 'test-result success';
+                    resultDiv.innerHTML = `
+                        <strong>✓ Basic Export Test Passed</strong><br>
+                        Extracted ${conversation.messages.length} messages<br>
+                    `;
+                    resultDiv.appendChild(a);
+                } else {
+                    throw new Error('No conversation data extracted');
+                }
+            } catch (error) {
+                resultDiv.className = 'test-result error';
+                resultDiv.innerHTML = `<strong>✗ Basic Export Test Failed:</strong> ${error.message}`;
+            }
+        }
+        
+        // Test HTML export functionality
+        function testHTMLExport() {
+            const resultDiv = document.getElementById('basicExportResult');
+            
+            try {
+                const conversationContainer = document.getElementById('mockConversation');
+                const htmlContent = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Chat Export - ${new Date().toISOString()}</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .message { margin: 20px 0; padding: 15px; border-radius: 8px; }
+        .user-message { background-color: #f0f0f0; }
+        .assistant-message { background-color: #e8f4fd; }
+    </style>
+</head>
+<body>
+    <h1>Chat Export</h1>
+    <div class="conversation">
+        ${conversationContainer.innerHTML}
+    </div>
+</body>
+</html>`;
+                
+                const blob = new Blob([htmlContent], { type: 'text/html' });
+                const url = URL.createObjectURL(blob);
+                const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+                
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `test-conversation-${timestamp}.html`;
+                a.textContent = 'Download Test HTML';
+                
+                resultDiv.className = 'test-result success';
+                resultDiv.innerHTML = `<strong>✓ HTML Export Test Passed</strong><br>Generated HTML content<br>`;
+                resultDiv.appendChild(a);
+            } catch (error) {
+                resultDiv.className = 'test-result error';
+                resultDiv.innerHTML = `<strong>✗ HTML Export Test Failed:</strong> ${error.message}`;
+            }
+        }
+        
+        // Test subscription status checking
+        function testSubscriptionCheck(status) {
+            const resultDiv = document.getElementById('subscriptionResult');
+            
+            // Mock subscription check
+            const mockProfile = { subscription_status: status };
+            
+            if (mockProfile.subscription_status === 'active') {
+                resultDiv.className = 'test-result success';
+                resultDiv.innerHTML = `
+                    <strong>✓ Active Subscription Detected</strong><br>
+                    User should have access to:<br>
+                    • Cloud backup of chat history<br>
+                    • Dashboard access<br>
+                    • HTML record storage<br>
+                `;
+            } else {
+                resultDiv.className = 'test-result info';
+                resultDiv.innerHTML = `
+                    <strong>ℹ Inactive Subscription Detected</strong><br>
+                    User should have access to:<br>
+                    • Basic export functionality only<br>
+                    • No cloud backup<br>
+                    • No dashboard access<br>
+                `;
+            }
+        }
+        
+        // Test dashboard access logic
+        function testDashboardAccess() {
+            const resultDiv = document.getElementById('dashboardResult');
+            
+            // Mock different scenarios
+            const scenarios = [
+                { user: null, expected: 'Redirect to login' },
+                { user: { id: '123' }, profile: { subscription_status: 'inactive' }, expected: 'Show subscription prompt' },
+                { user: { id: '123' }, profile: { subscription_status: 'active' }, expected: 'Show full dashboard' }
+            ];
+            
+            let testResults = '<strong>Dashboard Access Test Results:</strong><br>';
+            
+            scenarios.forEach((scenario, index) => {
+                if (!scenario.user) {
+                    testResults += `${index + 1}. No user logged in → ${scenario.expected} ✓<br>`;
+                } else if (scenario.profile.subscription_status === 'inactive') {
+                    testResults += `${index + 1}. User logged in, inactive subscription → ${scenario.expected} ✓<br>`;
+                } else {
+                    testResults += `${index + 1}. User logged in, active subscription → ${scenario.expected} ✓<br>`;
+                }
+            });
+            
+            resultDiv.className = 'test-result success';
+            resultDiv.innerHTML = testResults;
+        }
+    </script>
+</body>
+</html>

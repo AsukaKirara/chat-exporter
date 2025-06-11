@@ -6,19 +6,63 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://js.stripe.com/v3/"></script>
   <style>
-    body { font-family: sans-serif; max-width: 600px; margin: auto; }
+    body { font-family: sans-serif; max-width: 800px; margin: auto; padding: 20px; }
+    .record-item {
+      border: 1px solid #ddd;
+      margin: 10px 0;
+      padding: 15px;
+      border-radius: 8px;
+      background-color: #f9f9f9;
+    }
+    .record-title {
+      font-weight: bold;
+      margin-bottom: 10px;
+      color: #333;
+    }
+    .record-actions {
+      margin: 10px 0;
+    }
+    .record-actions button {
+      margin-right: 10px;
+      padding: 5px 10px;
+      border: none;
+      border-radius: 4px;
+      background-color: #007cba;
+      color: white;
+      cursor: pointer;
+    }
+    .record-actions button:hover {
+      background-color: #005a87;
+    }
+    .record-date {
+      font-size: 0.9em;
+      color: #666;
+    }
+    #buyBtn {
+      background-color: #28a745;
+      color: white;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    #buyBtn:hover {
+      background-color: #218838;
+    }
   </style>
 </head>
 <body>
-  <h1>User Dashboard</h1>
+  <h1>Chat Exporter Dashboard</h1>
   <div id="user"></div>
 
-  <h2>Your Uploaded Records</h2>
+  <h2>Your Chat History</h2>
+  <div id="records"></div>
 
-  <ul id="records"></ul>
   <h2>Your Purchases</h2>
   <ul id="purchases"></ul>
-  <button id="buyBtn">Purchase Service</button>
+
+  <button id="buyBtn" style="display: none;">Subscribe for Dashboard Access</button>
   <script src="dashboard.js"></script>
 </body>
 </html>

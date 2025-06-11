@@ -5,15 +5,19 @@ The JSON structure follows a common format used across many chat exporters so it
 
 ## Features
 
+### Without Login (Free)
 - Export conversations from multiple AI chat platforms
 - Download conversation data as JSON files
 - Simple one-click export process
 - Works directly in your browser without needing to copy/paste
+
+### With Login & Subscription
 - Supabase-based registration and login (email/password, Google, Apple)
-
-- Upload exports to a private Supabase Storage bucket for backup
-
-- Link to a management website for browsing your history and purchases
+- Cloud backup of chat history as HTML records
+- Dashboard access for managing your chat history
+- View HTML conversations in browser
+- Download JSON data from dashboard
+- Purchase management and subscription tracking
 
 ## Supported Platforms
 
@@ -39,15 +43,19 @@ Run the SQL script `prepal_migration.sql` against your Supabase project to creat
 
 ## Usage
 
+### Basic Export (No Login Required)
 1. Visit any supported AI chat platform
 2. Have a conversation with the AI
 3. Click on the AI Chat Exporter icon in your browser toolbar
+4. Click the "Export Conversation" button
+5. The conversation will be downloaded as a JSON file
 
-4. Sign up or log in to your Prepal account using Supabase Auth (email/password, Google or Apple)
-5. Click the "Export Conversation" button
-6. The conversation will be downloaded as a JSON file and uploaded to your private Supabase bucket
-7. Open `dashboard/index.html` to view your profile and purchase history
-8. Use the "Purchase Service" button to upgrade via Stripe Checkout
+### Cloud Features (Login Required)
+1. Sign up or log in using Supabase Auth (email/password, Google or Apple)
+2. Subscribe to the service for cloud backup features
+3. Export conversations - they will be saved to your dashboard as HTML records
+4. Open the dashboard to view and manage your chat history
+5. View HTML conversations in browser or download JSON data
 
 
 ## How It Works
@@ -88,13 +96,17 @@ The exported JSON has the following format:
 
 ## Authentication & Cloud Storage
 
-
-When logged in, each export is uploaded to a private Supabase Storage bucket named `chat-exports`. You can browse these uploads and manage your purchases using the dashboard under `dashboard/index.html`.
-
+When logged in with an active subscription, chat conversations are stored as HTML records in your Supabase database. This allows you to:
+- View conversations in a formatted HTML layout
+- Access your chat history from the dashboard
+- Download JSON data when needed
+- Manage your conversation archive
 
 ## Privacy
 
-This extension processes all data locally in your browser. No conversation data is sent to any servers. Your conversations remain private and under your control.
+**Without Login:** This extension processes all data locally in your browser. No conversation data is sent to any servers. Your conversations remain private and under your control.
+
+**With Subscription:** Chat history is stored in your business's Supabase database as HTML records for dashboard access and management. Only subscribed users can access the cloud features.
 
 ## Contributing
 
